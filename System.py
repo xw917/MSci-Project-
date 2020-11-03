@@ -21,7 +21,7 @@ class system:
         Parameters
         ----------
         n0 : int, initial vibrational state. The default is 50.
-        N  : int, number of iterations. The default is 100.
+        N  : int, number of cycles. The default is 100.
         t_pulse : float, duration of a single pulse. The default is 1.5e-6*31.
 
         """
@@ -58,8 +58,8 @@ class system:
                 # Excitation takes place or not:
                 eon = np.random.choice(2, 1, [1-Red_prob, Red_prob]) 
                 # print(eon)
-                if eon[0] == 1:
-                    self.n0 -= 1 # Excite --> motional number reduces by 1
+                if eon[0]:
+                    self.n0 -= 1 # n --> n - 1
                     # print("current state = %s" % (self.n0))
                 self.alln[i] = self.n0
             else: # when motional ground state is reached 
