@@ -29,7 +29,7 @@ class system:
         self.N = N
         self.t_pulse = t_pulse
         self.n = n0 # the vibrational state, initial at n0
-        self.alln = np.zeros(self.N)
+        self.alln = np.array([50 for i in range(self.N)])
         
     def __repr__(self):
         return "%s initial state = %s, time pulse = %s" % ("Initialisation: ",
@@ -39,23 +39,31 @@ class system:
     def excitation(self):
         """
         The first excitation from state S_1/2 to state D_5/2 following with a
-        repumping from state D_5/2 to P_3/2
+        repumping from state D_5/2 to P_3/2, in this simulation, we assume 
+        the transition between state D_5/2 to P_3/ is 100% and the decay rate
+        is infinitely large. 
 
         Returns
         -------
-        None.
+        An array of motional numbers correspond to different cycles. 
 
         """
-        # the first excitation 
         for i in range(self.N):
-            # find the effective Rabi frequency for the transition
-            Om_red = EffRabiFreq(self.n0, self.n0-1, Freq2Wav(L, -wz), wz, rb)
-            # find the excitation probability 
-            Red_prob = RabiOsci(self.t_pulse, Om_red, rb)
-            eon = np.random.choice(2, self.N, [1-Red_prob, Red_prob]) 
-            for i in range(self.N):
-                if eon[i] == 1:
-                    self.n0 -= 1
-                    self.alln[i] = self.n0
-            return self.alln
-            
+            if self.n0 != 0: # when motional ground state isn't reached
+                # find the effective Rabi frequency for the transition:
+                Om_red = EffRabiFreq(self.n0, self.n0-1, Freq2Wav(L, -wz), wz, rb)
+                #print(Om_red)
+                # find the excitation probability:
+                Red_prob = RabiOsci(self.t_pulse, Om_red, rb)
+                # Excitation takes place or not:
+                eon = np.random.choice(2, 1, [1-Red_prob, Red_prob]) 
+                # print(eon)
+                if eon[0] == 1:
+                    self.n0 -= 1 # Excite --> motional number reduces by 1
+                    # print("current state = %s" % (self.n0))
+                self.alln[i] = self.n0
+            else: # when motional ground state is reached 
+                self.alln[i] = 0      
+        return self.alln
+
+                   
