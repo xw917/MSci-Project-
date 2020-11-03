@@ -45,31 +45,31 @@ PlotRedSb(120)
 Plotting for <n> vs t
 """
 N = 50 # run 50 times 
-# pulse_time = [10e-6, 25e-6, 50e-6, 100e-6]
-# cycle = 500
+pulse_time = [10e-6, 25e-6, 50e-6, 100e-6]
+cycle = 500
 
-# for t in pulse_time:
-    # S = np.zeros(cycle)
-    # for n in range(N):
-        # s = system(50, cycle, t) # n0 = 50, No. of pulses = 500
-        # S = [sum(i) for i in zip(S,s.excitation())]
-    # ave_S = [j/N for j in S] # average phonon number 
-    # plt.plot(np.arange(0, cycle)*t, ave_S, label = 't = %s ms' %(t*10e3))
-# plt.legend(title = 'pulse duration')
-# plt.xlabel("time(ms)")
-# plt.ylabel("<n>")
-# plt.xlim(0, 0.02)
+for t in pulse_time:
+    S = np.zeros(cycle)
+    for n in range(N):
+        s = system(50, cycle, t) # n0 = 50, No. of pulses = 500
+        S = [sum(i) for i in zip(S,s.excitation())]
+    ave_S = [j/N for j in S] # average phonon number 
+    plt.plot(np.arange(0, cycle)*t, ave_S, label = 't = %s ms' %(t*10e3))
+plt.legend(title = 'pulse duration')
+plt.xlabel("time(ms)")
+plt.ylabel("<n>")
+plt.xlim(0, 0.02)
 
 #%%
 """
 Plotting for distribution of motional states 
 """
-# N = 50 # run 50 times
-# distribution = []
-# for n in range(N):
-    # s = system(50, 100, 1.5e-6) # n0 = 50, No. of pulses = 100, pulse duration = 1.5e-6s
-    # distribution += s.excitation().tolist()
+N = 50 # run 50 times
+distribution = []
+for n in range(N):
+    s = system(50, 100, 1.5e-6) # n0 = 50, No. of pulses = 100, pulse duration = 1.5e-6s
+    distribution += s.excitation().tolist()
 # print(len(distribution))
 
-# b = np.arange(0, 50)
-# plt.hist(distribution, bins = b)
+b = np.arange(0, 50)
+plt.hist(distribution, bins = b)
