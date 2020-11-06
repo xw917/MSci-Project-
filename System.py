@@ -21,7 +21,7 @@ class system:
         Parameters
         ----------
         n0 : int, initial vibrational state. The default is 50.
-        N  : int, number of cycles. The default is 100.
+        N  : int, number of pulses. The default is 100.
         t_pulse : float, duration of a single pulse. The default is 1.5e-6*31.
 
         """
@@ -56,7 +56,7 @@ class system:
                 # find the excitation probability:
                 Red_prob = RabiOsci(self.t_pulse, Om_red, rb)
                 # Excitation takes place or not:
-                eon = np.random.choice(2, 1, [1-Red_prob, Red_prob]) 
+                eon = np.random.choice(2, 1, p = [1-Red_prob, Red_prob]) 
                 # print(eon)
                 if eon[0]:
                     self.n0 -= 1 # n --> n - 1
