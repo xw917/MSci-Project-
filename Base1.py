@@ -52,7 +52,7 @@ def eff_rabi_freq(n, m, lamb, w):
     factor3 = eval_genlaguerre(np.amin([n, m]), n_diff, eta**2)
     return factor1 * factor2 * abs(factor3)
 
-def eff_rabi_freq(n1, m1, n2, m2, lamb, w):
+def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     """
     Calculate the matrix element for two-mode (COM mode and breathing mode for 
     string)
