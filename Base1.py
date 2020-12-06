@@ -39,12 +39,11 @@ def LambDicke(lamb, w):
 
 def eff_rabi_freq(n, m, lamb, w):
     '''
-    Calculate the matrix element ⟨n|e^i*η(a+a†)|m⟩
+    Calculate the matrix element ⟨n|e^i*η(a+a†)|m⟩ for single ion. 
     
     n, m: initial and final QHO state in the trap
     lamb: radiation wavelength
     w: trap frequency
-    om_0: original Rabi frequency
     '''
     eta, n_diff = LambDicke(lamb, w), abs(n - m) 
     # eta is the LD parameter for axial motion
@@ -53,6 +52,33 @@ def eff_rabi_freq(n, m, lamb, w):
     factor3 = eval_genlaguerre(np.amin([n, m]), n_diff, eta**2)
     return factor1 * factor2 * abs(factor3)
 
+def eff_rabi_freq(n1, m1, n2, m2, lamb, w):
+    """
+    Calculate the matrix element for two-mode (COM mode and breathing mode for 
+    string)
+
+    Parameters
+    ----------
+    n1, m1 : int. Initial and final states for COM mode.
+    n2, m2 : int. Initial and final states for breathing mode.
+    lamb : float, radiation wavelength
+    w : float, trap frequency
+    """
+    # L-D parameter for COM mode of string
+    com_eta, n_diff_com = LambDicke(lamb, w)/np.sqrt(2), abs(n1 - m1)
+    # L-D parameter for breathing mode of string 
+    b_eta, n_diff_b = LambDicke(lamb, w)/np.sqrt(2*np.sqrt(3)), abs(n2 - m2)
+    
+    factor1_com = np.exp(-com_eta**2 / 2) * (com_eta**n_diff_com)
+    factor2_com = np.sqrt(FactorialDiv(np.amin([n1, m1]), np.amax([n1, m1])))
+    factor3_com = eval_genlaguerre(np.amin([n1, m1]), n_diff_com, com_eta**2)
+    
+    factor1_b = np.exp(-b_eta**2 / 2) * (b_eta**n_diff_b)
+    factor2_b = np.sqrt(FactorialDiv(np.amin([n2, m2]), np.amax([n2, m2])))
+    factor3_b = eval_genlaguerre(np.amin([n2, m2]), n_diff_b, b_eta**2)
+    
+    return factor1_com*factor2_com*factor3_com + factor1_b*factor2_b*factor3_b
+    
 def nave_to_T(nave, w):
     '''
     Calculate trap temperature from average n of a Boltzmann distribution

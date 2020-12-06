@@ -85,6 +85,20 @@ def twod_traj(pulse, trap, data):
     return twod_data.T
 
 def twod_traj2(pulse, trap, logplot = False):
+    """
+    Population distribution over time. 
+    
+    Parameters
+    ----------
+    pulse : class, the applied laser pulse.
+    trap  : class, the system. 
+    logplot : True --> plot logplot, False --> logplot off. The default is False.
+
+    Returns
+    -------
+    A 2D contour plot. 
+
+    """
     a, b = trap.sideband_cool_sch(pulse)
     # print(a)
     m = []
