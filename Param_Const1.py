@@ -48,3 +48,4 @@ def sumColumn(m, column):
     for row in range(len(m)):
         total += m[row][column]
     return total
+
