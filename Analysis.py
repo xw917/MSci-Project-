@@ -184,3 +184,26 @@ def plot_matrix_method(pulse, trap, ToP):
     # plt.xlabel('time (ms)')
     # plt.ylabel('n')
     #plt.xlim(0, 10)   
+    
+#%%
+# functions for two ions
+
+def plot_twoD_rabi_strength(n_com, n_b, band_com, band_b, wavelength):
+    
+    def twoD_rabi_strength(n1, n2):
+        data = []
+        for n in range(band_com, n1):
+           sub_data = []
+           for nn in range(band_b, n2):
+               Om_red1 = eff_rabi_freq2(n, n-band_com, nn, nn-band_b, freq_to_wav(wavelength, wz * (-1)), wz)
+               sub_data.append(Om_red1)
+           data.append(sub_data)
+        return data
+    
+    Z = twoD_rabi_strength(n1 = n_com, n2 = n_b)
+    cs = plt.contourf(Z, levels = 20)
+    cs.changed()
+    plt.xlabel('$n_{B}$')
+    plt.ylabel('$n_{COM}$')
+    plt.colorbar()
+    
