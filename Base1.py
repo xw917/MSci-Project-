@@ -77,7 +77,8 @@ def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     factor2_b = np.sqrt(FactorialDiv(np.amin([n2, m2]), np.amax([n2, m2])))
     factor3_b = eval_genlaguerre(np.amin([n2, m2]), n_diff_b, b_eta**2)
     
-    return factor1_com*factor2_com*factor3_com * factor1_b*factor2_b*factor3_b
+    return factor1_com*factor2_com*abs(factor3_com) * factor1_b*factor2_b*abs(factor3_b)
+
     
 def nave_to_T(nave, w):
     '''
