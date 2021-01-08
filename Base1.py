@@ -29,6 +29,28 @@ def rabi_osci(t, Omega, A):
     p = A/2 * (1 - sp.cos(2 * W * t))
     return p
 
+def excitation_prob(n, omega, t):
+    """
+    calculate the probabilities for different excitations (may need to 
+    modify for case of more than 2 ions)
+
+    Parameters
+    ----------
+    state : int, current state
+    rabi  : float, rabi frequency 
+    t     : float, time
+    
+    Returns
+    -------
+    probabilities of state |e, e>, |e, g>, and |g, g>
+
+    """
+    ee = ((np.sqrt(n*(n-1))/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
+    eg = (np.sqrt(n/(2*(2*n-1)))*np.sin(np.sqrt((2*n-1)/2)*omega*t))**2
+    gg = (1-(n/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
+    
+    return ee, eg, gg
+
 def LambDicke(lamb, w):
     """
     L-D parameter for a single ion of mass m in a trap of frequency w, 
@@ -36,6 +58,13 @@ def LambDicke(lamb, w):
     """
     k_wave = 2 * sp.pi / lamb
     return np.sqrt(cs.hbar * k_wave**2 / (2 * m * w))
+
+def freq_to_wav(lamb, dw):
+    '''
+    Return shifted wavelength (+ve dw for blue shift, -ve dw for red shift)
+    '''
+    w0 = cs.c / lamb * 2 * sp.pi
+    return cs.c / (w0 + dw) * 2 * sp.pi
 
 def eff_rabi_freq(n, m, lamb, w):
     '''
@@ -79,7 +108,63 @@ def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     
     return factor1_com*factor2_com*abs(factor3_com) * factor1_b*factor2_b*abs(factor3_b)
 
+# L-D parameters for different numbers of ion and different mode 
+lamb = freq_to_wav(L, wz * (-1))
+LD_param = [[LambDicke(lamb, wz)], # single ion 
+            [LambDicke(lamb, wz)/np.sqrt(2), LambDicke(lamb, wz)/np.sqrt(2*np.sqrt(3))]] # two ions: com, breathing 
+
+def eff_rabi_freq_single_mode(Ni, mode, n, m, lamb, w):
+    '''
+    Calculate the matrix element ⟨n|e^i*η(a+a†)|m⟩ for single mode. 
     
+    Parameters
+    ----------
+    Ni: int, number of ions in the trap
+    mode: int, 0 --> com mode
+               1 --> breathing mode 
+    n, m: initial and final QHO state in the trap
+    lamb: radiation wavelength
+    w: trap frequency
+    
+    Return
+    ------
+    Rabi strength of a particular mode at a specific transition
+    '''
+    eta, n_diff = LD_param[Ni-1][mode], abs(n - m) 
+    # eta is the LD parameter for axial motion
+    factor1 = sp.exp(- eta**2 / 2) * (eta**n_diff)
+    factor2 = np.sqrt(FactorialDiv(sp.amin([n, m]), sp.amax([n, m])))
+    factor3 = eval_genlaguerre(np.amin([n, m]), n_diff, eta**2)
+    return factor1 * factor2 * abs(factor3)
+
+def eff_rabi_freq_N(Ni, state_0, n_diff, lamb, w):
+    """
+    Calculate the matrix element for n-mode 
+
+    Parameters
+    ----------
+    Ni      : int. Number of ions in the trap.
+    state_0 : list. Initial state for each mode: [com, breathing]
+    n_diff  : list. n - n' for each mode: [com, breathing]
+    lamb    : float. Radiation wavelength.
+    w       : float. Trap frequency 
+    
+    Returns
+    -------
+    matrix_element : float
+    """
+    # calculate LD parameter (!!! this need to be written in a more general form when extend to more than 2 ions !!!)
+    eta = [[LambDicke(lamb, w)], 
+           [LambDicke(lamb, w)/np.sqrt(2), LambDicke(lamb, w)/np.sqrt(2*np.sqrt(3))]]
+    
+    matrix_element = 1
+    for term in range(len(eta[Ni-1])):
+        factor1 = np.exp(-eta[Ni-1][term]**2 / 2) * (eta[Ni-1][term]**n_diff[term])
+        factor2 = np.sqrt(FactorialDiv(state_0[term] - n_diff[term], state_0[term]))
+        factor3 = eval_genlaguerre(state_0[term] - n_diff[term], n_diff[term], eta[Ni-1][term]**2)
+        matrix_element *= factor1 * factor2 * abs(factor3)
+    return matrix_element
+        
 def nave_to_T(nave, w):
     '''
     Calculate trap temperature from average n of a Boltzmann distribution
@@ -110,13 +195,6 @@ def Boltzmann_state(T, w, size = 100):
     bolt_fac = cs.hbar * w / (cs.k * T)
     return sts.planck.rvs(bolt_fac, size = size)
 
-def freq_to_wav(lamb, dw):
-    '''
-    Return shifted wavelength (+ve dw for blue shift, -ve dw for red shift)
-    '''
-    w0 = cs.c / lamb * 2 * sp.pi
-    return cs.c / (w0 + dw) * 2 * sp.pi
-
 def PlotRedSb(n0, sb, l):
     """
     Plot the relative strengths of the carrier, first and second sidebands at 
@@ -144,3 +222,5 @@ def PlotRedSb(n0, sb, l):
     plt.xlabel('Motional State Number (n)')
     plt.ylabel('Normalised Rabi Frequency Strength')
     plt.title('Transition wavelength = %s nm'%(int(l*1e9)))
+    
+

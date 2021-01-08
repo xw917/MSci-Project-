@@ -1,21 +1,12 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Nov 14 20:28:36 2020
+Created on Sun Dec 13 13:43:40 2020
 
-@author: cordelia
+@author: Corde
 """
-
-import timeit
-import datetime
 
 from Base1 import *
 from Param_Const1 import *
-
-def wrapper(func, *args, **kwargs):
-    def wrap():
-        return func(*args, **kwargs)
-    return wrap
 
 #%%
 class pulse:
@@ -28,10 +19,10 @@ class pulse:
         self.L = wavelength
         self.Ld = decay_wavelength
         self.sideband = sideband
-
-class trap:
-    def __init__(self, pulse, N = 100, n0 = 50, no_decay = True, 
-                 ore = False, sideband = 2, M = 100, thermal_state = True): 
+        
+class Trap:
+    def __init__(self, pulse, Ni = 1, N = 100, n0 = 50, no_decay = True, 
+                 ore = False, sideband = 2, M = 100, thermal_state = False): 
         """
         Initialisation.
         
@@ -39,6 +30,7 @@ class trap:
         ----------
         
         pulse    : class, simulation of the laser pulse
+        Ni       : int, number of ions in the trap
         n0       : int/list, initial state after Doppler cooling 
         N        : int, number of pulses applied (cycle of cooling process)
         no_decay : True - when decay to other motional sidebands is not considered
@@ -56,17 +48,16 @@ class trap:
         """
         # variables defined in the trap class
         # print('Start time:', datetime.datetime.now().time())
-        self.n0 = n0
-        self.N = N
+        self.Ni, self.mode = Ni, Ni # may need to change self.mode 
+        self.n0, self.N, self.M = n0, N, M
         self.alln = np.array([self.n0 for i in range(self.N + 1)])
-        self.excite = False
-        self.no_decay = no_decay
-        self.off_resonant_excite = ore
-        self.M = M
-        self.tml = thermal_state
+        self.no_decay, self.off_resonant_excite, self.tml = no_decay, ore, thermal_state
+        self.excite, self.sideband = False, sideband
         
         if not self.tml:
-            self.n = (n0 * np.ones(M)).astype('int')
+            # states for different modes
+            # self.n = np.array([self.n0 for i in range(self.Ni)])
+            self.n = (self.n0*np.ones(self.Ni)).astype('int')
         else:
             self.T0_th = nave_to_T(n0, wz)  # theoretical value of initial temperature
             self.n = Boltzmann_state(self.T0_th, wz, size = M)  # initialise array of n0
@@ -78,12 +69,9 @@ class trap:
                 raise Exception('Deviation in ⟨n0⟩ too large. Try again!!!')
         
         # variables defined in the pulse class 
-        self.L = pulse.L
-        self.Ld = pulse.Ld
-#        self.t = pulse.t
+        self.L, self.Ld = pulse.L, pulse.Ld
+        # self.t = pulse.t
         
-        self.sideband = sideband
-            
         if isinstance(self.n0, int): # single Fock state 
             self.n_list = self.n0 * np.ones(self.M)
             self.n_list = self.n_list.astype(int)
@@ -93,22 +81,19 @@ class trap:
             self.M_trial = self.n0.size
             
         # calculate Rabi frequency matrix
-        if not thermal_state:
-            rab_dim = int(n0 * 2)
-        else:
-            rab_dim = int(maxn0 + 10)
-        self.R, self.Rd = sp.zeros((rab_dim, rab_dim)), sp.zeros((rab_dim, rab_dim))
-        for i in range(rab_dim):
-            for j in range(i + 1):
-                # matrix elements for excitation Rabi frequencies 
-                self.R[i, j] = eff_rabi_freq(i, j, freq_to_wav(self.L, wz * pulse.sideband), wz)
-                # matrix elements for decay Rabi frequencies
-                self.Rd[i, j] = eff_rabi_freq(i, j, freq_to_wav(self.Ld, 0), wz)
-        self.R = self.R + np.tril(self.R, k = -1).T
-        self.Rd = self.Rd + np.tril(self.Rd, k = -1).T
-        
+        rab_dim = int(self.n0+1)
+        self.R, self.Rd = [], [] # initialisation
+        for mode in range(self.mode): 
+            R_mode, Rd_mode = np.zeros((rab_dim, rab_dim)), np.zeros((rab_dim, rab_dim))
+            for i in range(rab_dim):
+                for j in range(i+1):
+                   R_mode[i, j] = eff_rabi_freq_single_mode(self.Ni, mode, i, j, freq_to_wav(self.L, wz * pulse.sideband), wz)
+                   Rd_mode[i, j] = eff_rabi_freq_single_mode(self.Ni, mode, i, j, freq_to_wav(self.Ld, 0), wz)
+            R_mode, Rd_mode = R_mode + np.tril(R_mode, k = -1).T, Rd_mode + np.tril(Rd_mode, k = -1).T
+            self.R.append(R_mode) 
+            self.Rd.append(Rd_mode)
+            
         # print(self.R)
-        
         # print('Initialisation completed.')
         # print('Current time:', datetime.datetime.now().time())
         
@@ -119,13 +104,23 @@ class trap:
         is determined. 
         """
         not_in_ground_state = (self.n - 1) >= 0  # whether the motion has reached ground state
+
+        om_red = []
+        for mode in range(self.mode):
+            # print('mode = %s, selectied n = %s'%(mode, self.n[mode]))
+            sub_om_red = self.R[mode][self.n[mode]][self.n[mode]+pulse.sideband] * rb * not_in_ground_state[mode]
+            om_red.append(sub_om_red)
         
-        # construct the corresponding array of eff.r.freq
-        om_red = np.array([self.R[n, n + pulse.sideband] for n in self.n]) * rb * not_in_ground_state
-        # print('one pulse')
-        # print('om_red = %s'%(om_red))
-        red_prob = rabi_osci(pulse.t, om_red, 1) # calculate sideband excite probability
+        com_prob = excitation_prob(self.n[0], om_red[0], pulse.t)
+        breathing_prob = excitation_prob(self.n[1], om_red[1], pulse.t)
         
+        print(com_prob)
+        print(breathing_prob)
+        
+        ##red_prob = rabi_osci(pulse.t, om_red, 1) # calculate sideband excite probability
+        ##print(red_prob)
+        
+        """
         if self.off_resonant_excite:
             detune = wz * pulse.sideband # detuning
             # construct carrier strength
@@ -149,7 +144,8 @@ class trap:
             self.excite = (eon != 0)
             # shift the photon state
             self.n = self.n + self.excite * (- eon)
-            
+          """
+          
     def decay(self):
         '''
         Simulate the decay process (allow decay to different sidebands), also
@@ -221,93 +217,3 @@ class trap:
         # print('Cooling ends at:', datetime.datetime.now().time())
         
         return all_trial_n.T, all_trial_n_ave
-    
-    def matrix_calculator(self, pulse, N0):
-        """
-        Calculate the matrix for excitation probability
-        
-        Parameters
-        ----------
-        N0 : int, initial state
-        
-        Return
-        ------
-        matrix : list of lists, matrix for excitation probability 
-        """
-        matrix = np.zeros((N0,  N0)) # matrix for probabilities
-        for i in range(1, N0):
-            Om_red = self.R[i, i-1] * rb
-            Red_prob = rabi_osci(pulse.t, Om_red, 1) 
-            matrix[i, i] = 1-Red_prob
-            matrix[i-1, i] = Red_prob
-        return matrix
-    
-    def decay_matrix_calculator(self, N0):
-        """
-        Calculate the matrix for decay probability
-        
-        Parameters
-        ----------
-        N0 : int, initial state
-        
-        Return
-        ------
-        decay_ matrix : list of lists, matrix for decay probability
-        """
-        decay_matrix = np.zeros((N0, N0))
-        # decay_matrix[-1, -1] = 1
-        sideband_arr = np.arange(-self.sideband, self.sideband + 1, 1)
-        # print(sideband_arr)
-        for n in range(0, N0): 
-            # print(n)
-            for sideband in sideband_arr:
-                if n + sideband >= 0 and n + sideband < N0:
-                    Prob_red = self.Rd[n, n + sideband]
-                    decay_matrix[n, n + sideband] = Prob_red**2
-
-        for column in range(len(decay_matrix[0])):
-            s = sumColumn(decay_matrix, column)
-            for row in range(len(decay_matrix)):
-                decay_matrix[row, column] /= s
-
-        return decay_matrix
-        
-    def matrix_method(self, pulse):
-        """
-        The matrix method to simulate cooling process 
- 
-        Return
-        ------
-        data : list, probability distrubution after applying N pulses
-        """
-        all_data = []
-        if isinstance(self.n0, int):
-            n0 = [self.n0]
-        else: 
-            n0 = self.n0
-            
-        for n in n0:
-            N0 = n+1  
-            matrix = self.matrix_calculator(pulse, N0)  
-            if self.no_decay == False: 
-                # decay matrix is calculated only when decay is considered 
-                decay_matrix = self.decay_matrix_calculator(N0)
-            
-            data = []
-            distr = np.zeros((N0,1))
-            distr[-1] = 1
-            data.append(distr)
-        
-            for i in range(self.N):
-                # probability distribution after each pulse
-                distr = np.matmul(matrix, distr) 
-                # print(sum(distr))
-            
-                if self.no_decay == False: # case when decay is considered            
-                    # probability distribution taking into account decay
-                    distr = np.matmul(decay_matrix,  distr) 
-                    # print(sum(distr))
-                data.append(distr)
-            all_data.append(data)
-        return n0, all_data
-

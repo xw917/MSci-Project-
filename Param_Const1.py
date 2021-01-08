@@ -12,6 +12,7 @@ import scipy.stats as sts
 import scipy.constants as cs
 from scipy.special import eval_genlaguerre
 
+
 q = 1 # no. of unit of positive charge on the ion
 m = cs.m_p * 20 + cs.m_n * 20  # mass of the Ca+ ion
 
@@ -28,6 +29,7 @@ wm = wc - sp.sqrt(wc**2 - 2 * wz**2)  # magnetron freq
 
 L = 729e-9  # sideband cooling transition wavelength
 LD = 397e-9 # decay sideband transition wavelength
+
 
 def FactorialDiv(x, y):
     '''
