@@ -21,7 +21,7 @@ class pulse:
         self.sideband = sideband
         
 class Trap:
-    def __init__(self, pulse, Ni = 1, N = 100, n0 = 50, no_decay = True, 
+    def __init__(self, pulse, Ni = 1, cooling = 'c', N = 100, n0 = 50, no_decay = True, 
                  ore = False, sideband = 2, M = 100, thermal_state = False): 
         """
         Initialisation.
@@ -31,6 +31,7 @@ class Trap:
         
         pulse    : class, simulation of the laser pulse
         Ni       : int, number of ions in the trap
+        cooling  : string, which mode to cool, 'c' is COM, 'b' is breathing 
         n0       : int/list, initial state after Doppler cooling 
         N        : int, number of pulses applied (cycle of cooling process)
         no_decay : True - when decay to other motional sidebands is not considered
@@ -48,16 +49,18 @@ class Trap:
         """
         # variables defined in the trap class
         # print('Start time:', datetime.datetime.now().time())
-        self.Ni, self.mode = Ni, Ni # may need to change self.mode 
+        self.Ni, self.mode = Ni, Ni # may need to change self.mode for more than 2 ions 
+        self.cooling = cooling
         self.n0, self.N, self.M = n0, N, M
         self.alln = np.array([self.n0 for i in range(self.N + 1)])
         self.no_decay, self.off_resonant_excite, self.tml = no_decay, ore, thermal_state
         self.excite, self.sideband = False, sideband
         
         if not self.tml:
-            # states for different modes
-            # self.n = np.array([self.n0 for i in range(self.Ni)])
-            self.n = (self.n0*np.ones(self.Ni)).astype('int')
+            # list of states for different modes, by default, the [0] represents COM while [1] represents breathing
+            self.n = (self.n0 * np.ones(self.Ni)).astype('int') 
+            # list of trap frequencies for different modes, by default, the [0] represents COM while [1] represents breathing
+            trap_freq = np.array([wz, np.sqrt(3)*wz])
         else:
             self.T0_th = nave_to_T(n0, wz)  # theoretical value of initial temperature
             self.n = Boltzmann_state(self.T0_th, wz, size = M)  # initialise array of n0
@@ -85,10 +88,11 @@ class Trap:
         self.R, self.Rd = [], [] # initialisation
         for mode in range(self.mode): 
             R_mode, Rd_mode = np.zeros((rab_dim, rab_dim)), np.zeros((rab_dim, rab_dim))
+            w = trap_freq[mode] # choosing the resonant trap frequency for different modes 
             for i in range(rab_dim):
                 for j in range(i+1):
-                   R_mode[i, j] = eff_rabi_freq_single_mode(self.Ni, mode, i, j, freq_to_wav(self.L, wz * pulse.sideband), wz)
-                   Rd_mode[i, j] = eff_rabi_freq_single_mode(self.Ni, mode, i, j, freq_to_wav(self.Ld, 0), wz)
+                    R_mode[i, j] = eff_rabi_freq_single_mode(self.Ni, mode, i, j, freq_to_wav(self.L, w * pulse.sideband), w)
+                    Rd_mode[i, j] = eff_rabi_freq_single_mode(self.Ni, mode, i, j, freq_to_wav(self.Ld, 0), w)
             R_mode, Rd_mode = R_mode + np.tril(R_mode, k = -1).T, Rd_mode + np.tril(Rd_mode, k = -1).T
             self.R.append(R_mode) 
             self.Rd.append(Rd_mode)
@@ -111,14 +115,9 @@ class Trap:
             sub_om_red = self.R[mode][self.n[mode]][self.n[mode]+pulse.sideband] * rb * not_in_ground_state[mode]
             om_red.append(sub_om_red)
         
-        com_prob = excitation_prob(self.n[0], om_red[0], pulse.t)
-        breathing_prob = excitation_prob(self.n[1], om_red[1], pulse.t)
-        
-        print(com_prob)
-        print(breathing_prob)
-        
-        ##red_prob = rabi_osci(pulse.t, om_red, 1) # calculate sideband excite probability
-        ##print(red_prob)
+        if self.cooling == 'c': # cooling the COM mode 
+            com_prob = excitation_prob(self.n[0], om_red[0], pulse.t)
+            breathing_prob = excitation_prob(self.n[1], om_red[1], pulse.t)
         
         """
         if self.off_resonant_excite:

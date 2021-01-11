@@ -96,7 +96,7 @@ def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     # L-D parameter for COM mode of string
     com_eta, n_diff_com = LambDicke(lamb, w)/np.sqrt(2), abs(n1 - m1)
     # L-D parameter for breathing mode of string 
-    b_eta, n_diff_b = LambDicke(lamb, w)/np.sqrt(2*np.sqrt(3)), abs(n2 - m2)
+    b_eta, n_diff_b = LambDicke(lamb, w)/np.sqrt(2*np.sqrt(3)), abs(n2 - m2) # what should be the w for breathing mode? wz or sqrt(3)*wz
     
     factor1_com = np.exp(-com_eta**2 / 2) * (com_eta**n_diff_com)
     factor2_com = np.sqrt(FactorialDiv(np.amin([n1, m1]), np.amax([n1, m1])))
