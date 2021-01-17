@@ -45,9 +45,14 @@ def excitation_prob(n, omega, t):
     probabilities of state |e, e>, |e, g>, and |g, g>
 
     """
-    ee = ((np.sqrt(n*(n-1))/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
-    eg = (np.sqrt(n/(2*(2*n-1)))*np.sin(np.sqrt((2*n-1)/2)*omega*t))**2
-    gg = (1-(n/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
+    if n == 0:
+        ee = 0
+        eg = 0
+        gg = 1
+    else:
+        ee = ((np.sqrt(n*(n-1))/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
+        eg = (np.sqrt(n/(2*(2*n-1)))*np.sin(np.sqrt((2*n-1)/2)*omega*t))**2
+        gg = (1-(n/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
     
     return ee, eg, gg
 
@@ -96,7 +101,7 @@ def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     # L-D parameter for COM mode of string
     com_eta, n_diff_com = LambDicke(lamb, w)/np.sqrt(2), abs(n1 - m1)
     # L-D parameter for breathing mode of string 
-    b_eta, n_diff_b = LambDicke(lamb, w)/np.sqrt(2*np.sqrt(3)), abs(n2 - m2) # what should be the w for breathing mode? wz or sqrt(3)*wz
+    b_eta, n_diff_b = LambDicke(lamb, w)/np.sqrt(2*np.sqrt(3)), abs(n2 - m2) 
     
     factor1_com = np.exp(-com_eta**2 / 2) * (com_eta**n_diff_com)
     factor2_com = np.sqrt(FactorialDiv(np.amin([n1, m1]), np.amax([n1, m1])))
@@ -107,11 +112,6 @@ def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     factor3_b = eval_genlaguerre(np.amin([n2, m2]), n_diff_b, b_eta**2)
     
     return factor1_com*factor2_com*abs(factor3_com) * factor1_b*factor2_b*abs(factor3_b)
-
-# L-D parameters for different numbers of ion and different mode 
-lamb = freq_to_wav(L, wz * (-1))
-LD_param = [[LambDicke(lamb, wz)], # single ion 
-            [LambDicke(lamb, wz)/np.sqrt(2), LambDicke(lamb, wz)/np.sqrt(2*np.sqrt(3))]] # two ions: com, breathing 
 
 def eff_rabi_freq_single_mode(Ni, mode, n, m, lamb, w):
     '''
@@ -130,6 +130,9 @@ def eff_rabi_freq_single_mode(Ni, mode, n, m, lamb, w):
     ------
     Rabi strength of a particular mode at a specific transition
     '''
+    # L-D parameters for different numbers of ion and different mode 
+    LD_param = [[LambDicke(lamb, wz)], # single ion 
+                [LambDicke(lamb, wz)/np.sqrt(2), LambDicke(lamb, wz)/np.sqrt(2*np.sqrt(3))]] # two ions: com, breathing 
     eta, n_diff = LD_param[Ni-1][mode], abs(n - m) 
     # eta is the LD parameter for axial motion
     factor1 = sp.exp(- eta**2 / 2) * (eta**n_diff)

@@ -30,8 +30,8 @@ class pulse:
         self.sideband = sideband
 
 class trap:
-    def __init__(self, pulse, N = 100, n0 = 50, no_decay = True, 
-                 ore = False, sideband = 2, M = 100, thermal_state = True): 
+    def __init__(self, pulse, N = 100, n0 = 50, no_decay = False, 
+                 ore = False, sideband = 2, M = 1, thermal_state = False): 
         """
         Initialisation.
         
@@ -124,7 +124,7 @@ class trap:
         om_red = np.array([self.R[n, n + pulse.sideband] for n in self.n]) * rb * not_in_ground_state
         # print('one pulse')
         # print('om_red = %s'%(om_red))
-        red_prob = rabi_osci(pulse.t, om_red, 1) # calculate sideband excite probability
+        red_prob = rabi_osci(pulse.omt, _red, 1) # calculate sideband excite probability
         
         if self.off_resonant_excite:
             detune = wz * pulse.sideband # detuning
