@@ -26,14 +26,9 @@ class pulse:
         self.N = N
         self.sideband = sideband
         
-        self.R = np.zeros((500, 500))
-        for i in range(100):
-            for j in range(i + 1):
-                # matrix elements for excitation Rabi frequencies 
-                for sideband in self.sideband:
-                    if sideband != 0:
-                        self.R[i, j] = eff_rabi_freq(i, j, freq_to_wav(L, wz * sideband), wz)
-        self.R = self.R + np.tril(self.R, k = -1).T
+        all_rabi_strength = pickle.load(open('test2', 'rb'))
+        self.R_com = all_rabi_strength[-sideband[0]]
+        self.R_b = all_rabi_strength[-sideband[1]]
         
 class Trap:
     def __init__(self, Ni = 2, n0 = [50, 50], M = 3, spin_motion = True): 
@@ -65,7 +60,6 @@ class Trap:
         # list of trap frequencies for different modes, by default, the [0] represents COM while [1] represents breathing
         self.trap_freq = np.array([wz, np.sqrt(3)*wz])        
         # list of states for different modes, by default, the [0] represents COM while [1] represents breathing
-        # self.n = np.multiply(self.n0, np.ones(self.Ni)).astype('int') 
         self.n = [[],[]]
         # average_number_of_state = [] 
         self.T0_th = nave_to_T(self.n0, wz)  # theoretical value of initial temperature
@@ -74,12 +68,6 @@ class Trap:
             self.n[mode] = distribution_n0
             # average_number_of_state.append(np.average(distribution_n0)) # average n 
         # self.nn, self.kk = average_number_of_state[0],  average_number_of_state[1]# n bar and k bar for COM and breathing mode respectively
-        # thermal_state_probability = (self.nn**n)/((self.nn+1)**(n+1)) * (self.kk**k)/((self.kk+1)**(k+1))
-
-        # variables defined in the pulse class 
-        # self.L, self.Ld = pulse.L, pulse.Ld
-        # self.t = pulse.t
-        
             
         """
         Rabi strengths
@@ -97,46 +85,52 @@ class Trap:
         Simulate the situation when one pulse is applied. The excitation 
         probability is calculated and whether or not excitation takes place 
         is determined. 
-        
-        !!! Need to modify to a more general form (cooling COM mode and cooling both modes simultaneously)
         """
         if self.sm:
             """Case for spin-motion entanglement (within Lamb-Dicke regime)"""
-            eta_c = LambDicke(freq_to_wav(pulse.L, wz * pulse.sideband[1]), wz)/np.sqrt(2) # LD param for COM mode
-            eta_b = LambDicke(freq_to_wav(pulse.L, wz * pulse.sideband[1]), wz)/np.sqrt(2*np.sqrt(3)) # LD param for breathing mode
-            # omega0 = np.array([[self.R[n, n + pulse.sideband[mode]] * rb for n in self.n[mode]] for mode in range(self.Ni)])
-            # omega0 = [[rb * eff_rabi_freq(n + pulse.sideband[mode], n, freq_to_wav(self.L, wz * pulse.sideband[mode]), wz) for n in self.n[mode]] for mode in range(self.Ni)]
-            # print(omega0)
+
+            total_sideband = np.sum(pulse.sideband)
             for i in range(self.M):
                 if not pulse.sideband[0]: # laser points to resonant frequency of breathing mode 
-                    not_in_ground_state = (self.n[1][i]+pulse.sideband[1]) >= 0  # whether the motion has reached ground state
-                    mode_cool = 1
-                    omega0 = pulse.R[self.n[1][i], self.n[1][i] + pulse.sideband[1]] * rb * not_in_ground_state
+                    eta_b = LambDicke(freq_to_wav(pulse.L, wz * pulse.sideband[1]), wz)/np.sqrt(2*np.sqrt(3)) # LD param for breathing mode
+                    not_in_ground_state = (self.n[1][i] + pulse.sideband[1]) >= 0  # whether the motion has reached ground state
+                    omega0 = pulse.R_b[self.n[1][i], self.n[1][i] + pulse.sideband[1]] * rb * not_in_ground_state
                     ee, eg, gg = excitation_prob(self.n[1][i], omega0 * eta_b, pulse.t)
                     
+                    probability = np.array([gg, 2*eg, ee])
+                    eon = np.random.choice(3, size = 1, p = probability)[0]
+                    if eon == 1:
+                        self.excite[i] = 1
+                        self.n[1][i] -= 1
+                    if eon == 2: 
+                        self.excite[i] = 1
+                        self.n[1][i] -= 2
+                        
                 if not pulse.sideband[1]: # laser points to resonant frequency of COM mode 
-                    not_in_ground_state = (self.n[0][i]+pulse.sideband[0]) >= 0  # whether the motion has reached ground state
-                    mode_cool = 0
-                    omega0 = pulse.R[self.n[0][i], self.n[0][i] + pulse.sideband[0]] * rb * not_in_ground_state
-                    ee, eg, gg = excitation_prob(self.n[0][i], omega0[0][i] * eta_c, pulse.t)
-                probability = np.array([gg, 2*eg, ee])
-                eon = np.random.choice(3, size = 1, p = probability)[0]
-                if eon == 1:
-                    self.excite[i] = 1
-                    self.n[mode_cool][i] -= 1
-                if eon == 2: 
-                    self.excite[i] = 1
-                    self.n[mode_cool][i] -= 2
-
-        
+                    eta_c = LambDicke(freq_to_wav(pulse.L, wz * pulse.sideband[0]), wz)/np.sqrt(2) # LD param for COM mode
+                    not_in_ground_state = (self.n[0][i] + pulse.sideband[0]) >= 0  # whether the motion has reached ground state
+                    omega0 = pulse.R_com[self.n[0][i], self.n[0][i] + pulse.sideband[0]] * rb * not_in_ground_state
+                    ee, eg, gg = excitation_prob(self.n[0][i], omega0 * eta_c, pulse.t)
+                    
+                    probability = np.array([gg, 2*eg, ee])
+                    eon = np.random.choice(3, size = 1, p = probability)[0]
+                    if eon == 1:
+                        self.excite[i] = 1
+                        self.n[0][i] -= 1
+                    if eon == 2: 
+                        self.excite[i] = 1
+                        self.n[0][i] -= 2
+                    
+  
         if not self.sm:
             """Case when spin-motion entanglement not considered (outside Lamb-Dicke regime)"""
             n, k = self.n[0], self.n[1]        
-            oc = self.all_rabi_strength[0]["off_excite"][-pulse.sideband] # rabi strength for COM mode 
-            ob = self.all_rabi_strength[1]["resonant_excite"][-pulse.sideband] # rabi strength for breathing mode 
-            thermal_factor = (self.nn**n)/((self.nn+1)**(n+1)) * (self.kk**k)/((self.kk+1)**(k+1))
+            oc = self.all_rabi_strength[0]["off_excite"][-pulse.sideband[0]] # rabi strength for COM mode 
+            ob = self.all_rabi_strength[1]["resonant_excite"][-pulse.sideband[1]] # rabi strength for breathing mode 
+
             # Resonant excitation for breathing mode
-            om_b_resonant = rb * oc[n][n] * ob[k][k-pulse.sideband] * not_in_ground_state[1]
+            not_in_ground_state = (self.n[1][i] + pulse.sideband[1]) >= 0
+            om_b_resonant = rb * oc[n[i]][n[i]] * ob[k[i]][k[i]-pulse.sideband] * not_in_ground_state[1]
             prob_b_resonant_ge = rabi_osci(pulse.t, om_b_resonant, 1)
             prob_b_resonant_ee = prob_b_resonant_ge**2
             
@@ -174,13 +168,18 @@ class Trap:
         # determine whether the sideband exists or not, negative sideband not exist 
         # sideband_prob = []
         #"""
+        Rd_com = self.all_rabi_strength[0]["decay"] 
+        Rd_b = self.all_rabi_strength[1]["decay"] 
+        
         for mode in range(2):
             for i in range(self.M):
                 sideband_arr = np.arange(-2, 3, 1) # sidebands which can decay to
                 sideband_exist = np.array([((self.n[mode][i] + sideband) >= 0) for sideband in sideband_arr]) # decay to state lower than ground state is not allowed 
-                Rd = self.all_rabi_strength[mode]["decay"] 
-                sideband_strg = np.concatenate((np.zeros(abs(np.min([self.n[mode][i]-2, 0]))),
-                                                Rd[self.n[mode][i]][np.max([self.n[mode][i]-2, 0]) : self.n[mode][i]+2+1])) # sideband strength
+                strg_com = np.concatenate((np.zeros(abs(np.min([self.n[0][i]-2, 0]))),
+                                                Rd_com[self.n[0][i]][np.max([self.n[0][i]-2, 0]) : self.n[0][i]+2+1])) # sideband strength fot COM mode
+                strg_b = np.concatenate((np.zeros(abs(np.min([self.n[1][i]-2, 0]))),
+                                                Rd_b[self.n[1][i]][np.max([self.n[1][i]-2, 0]) : self.n[1][i]+2+1])) # sideband strength fot COM mode
+                sideband_strg = np.multiply(strg_com, strg_b)
                 # print(sideband_strg)
                 sideband_prob = np.multiply(sideband_exist, sideband_strg)**2 / np.sum(np.multiply(sideband_exist, sideband_strg)**2)
                 decay_to = np.random.choice(sideband_arr.size, size = 1, p = sideband_prob)

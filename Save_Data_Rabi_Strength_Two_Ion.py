@@ -48,3 +48,21 @@ for mode in range(2): # two modes are considered where [0]: COM and [1]: breathi
     all_rabi_strength[mode] = rabi_strength
 
 pickle.dump(all_rabi_strength, open('test','wb'))
+
+#%%
+all_rabi_strength = OrderedDict()
+
+sideband = np.arange(0, 4, 1)
+d = 500
+for s in sideband:
+    R = np.zeros((d, d))
+    for i in range(d):
+        for j in range(i + 1):
+            # matrix elements for excitation Rabi frequencies 
+            R[i, j] = eff_rabi_freq(i, j, freq_to_wav(L, wz * (-1)*s), wz)
+    R += np.tril(R, k = -1).T
+    all_rabi_strength[s] = R
+    
+pickle.dump(all_rabi_strength, open('test2','wb'))
+
+

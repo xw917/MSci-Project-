@@ -12,6 +12,7 @@ import timeit
 import matplotlib.pyplot as plt
 import random
 import collections
+import pickle 
 
 from Base1 import *
 from Param_Const1 import *
@@ -189,13 +190,13 @@ def plot_matrix_method(pulse, trap, ToP):
 # functions for two ions
 
 def plot_twoD_rabi_strength(n_com, n_b, band_com, band_b, wavelength):
-    
+    sideband = band_com + band_b
     def twoD_rabi_strength(n1, n2):
         data = []
-        for n in range(band_com, n1):
+        for n in range((-1)*band_com, n1):
            sub_data = []
-           for nn in range(band_b, n2):
-               Om_red1 = eff_rabi_freq2(n, n-band_com, nn, nn-band_b, freq_to_wav(wavelength, wz * (-1)), wz)
+           for nn in range((-1)*band_b, n2):
+               Om_red1 = eff_rabi_freq2(n+band_com, n, nn+band_b, nn, freq_to_wav(wavelength, wz * (-1)), wz)
                sub_data.append(Om_red1)
            data.append(sub_data)
         return data
@@ -206,4 +207,32 @@ def plot_twoD_rabi_strength(n_com, n_b, band_com, band_b, wavelength):
     plt.xlabel('$n_{B}$')
     plt.ylabel('$n_{COM}$')
     plt.colorbar()
+
+
+
+def twoD_Contour(com_s, b_s, pulse_time, states):
+    all_rabi_strength = pickle.load(open('test2', 'rb'))
+    R_com = all_rabi_strength[-com_s]
+    R_b = all_rabi_strength[-b_s]
+
+    eta_c = LambDicke(freq_to_wav(L, wz * com_s), wz)/np.sqrt(2) # LD param for COM mode
+    eta_b = LambDicke(freq_to_wav(L, wz * b_s), wz)/np.sqrt(2*np.sqrt(3)) # LD param for breathing mode
+                      
+    def excitation_probability(time, state):
+        data = []
+        for t in time:
+            sub_data = []
+            for n in state:
+                omega0 = R_b[n][n-2] * rb
+                ee, eg, gg = excitation_prob(n, omega0 * eta_b, t)
+                sub_data.append(ee + eg)
+            data.append(sub_data)
+        return data
+
+    Z = excitation_probability(pulse_time, states)
     
+    cs = plt.contourf(Z, levels = 20)
+    cs.changed()
+    plt.xlabel('States (n)')
+    plt.ylabel(r'Pulse time ($1\times 10^{-5}$s) ')
+    plt.colorbar()
