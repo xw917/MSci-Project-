@@ -27,7 +27,7 @@ class pulse:
         self.t = pulse_length
         self.L = wavelength
         self.Ld = decay_wavelength
-        self.sideband = sideband
+        self.sideband = np.array(sideband)
 
 class trap:
     def __init__(self, pulse, N = 100, n0 = 50, no_decay = False, 
@@ -55,7 +55,7 @@ class trap:
             quantum number
         """
         # variables defined in the trap class
-        # print('Start time:', datetime.datetime.now().time())
+        # print('Start time:', datetime.datetime.now().time()) 
         self.n0 = n0
         self.N = N
         self.alln = np.array([self.n0 for i in range(self.N + 1)])
@@ -73,9 +73,10 @@ class trap:
             actual_aven0, maxn0 = np.average(self.n), np.max(self.n)
             print('Initial temperature (theoretical):', self.T0_th, 'K')
             print('Initial average n   (actual)     :', actual_aven0)
-            
+            """
             if abs(actual_aven0 - n0) >= 2:
                 raise Exception('Deviation in ⟨n0⟩ too large. Try again!!!')
+            """
         
         # variables defined in the pulse class 
         self.L = pulse.L
@@ -124,7 +125,7 @@ class trap:
         om_red = np.array([self.R[n, n + pulse.sideband] for n in self.n]) * rb * not_in_ground_state
         # print('one pulse')
         # print('om_red = %s'%(om_red))
-        red_prob = rabi_osci(pulse.omt, _red, 1) # calculate sideband excite probability
+        red_prob = rabi_osci(pulse.t, om_red, 1) # calculate sideband excite probability
         
         if self.off_resonant_excite:
             detune = wz * pulse.sideband # detuning

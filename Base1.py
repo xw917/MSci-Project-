@@ -4,6 +4,7 @@ Spyder Editor
 This file specifies parameters of the Penning Trap
 """
 from Param_Const1 import *
+from Schrodinger import *
 
 """
 Assumptions:
@@ -45,16 +46,18 @@ def excitation_prob(n, omega, t):
     probabilities of state |e, e>, |e, g>, and |g, g>
 
     """
+    """
     if n == 0:
         ee = 0
         eg = 0
         gg = 1
     else:
-        ee = ((np.sqrt(n*(n-1))/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
-        eg = (np.sqrt(n/(2*(2*n-1)))*np.sin(np.sqrt((2*n-1)/2)*omega*t))**2
-        gg = (1-(n/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
+        """
+    ee = ((np.sqrt(n*(n-1))/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
+    eg = (np.sqrt(n/(2*(2*n-1)))*np.sin(np.sqrt((2*n-1)/2)*omega*t))**2
+    gg = (1-(n/(2*n-1))*(1-np.cos(np.sqrt((2*n-1)/2)*omega*t)))**2
     
-    return ee, eg, gg
+    return ee, 2*eg, gg
 
 def LambDicke(lamb, w):
     """
@@ -64,6 +67,13 @@ def LambDicke(lamb, w):
     k_wave = 2 * sp.pi / lamb
     return np.sqrt(cs.hbar * k_wave**2 / (2 * m * w))
 
+def LambDicke_planar(N):
+    modes_w, K, m =  icc_normal_modes_z(N)
+    nm_freq = ones((N, modes_w.size)) * modes_w * we
+    ftw = freq_to_wav(L, nm_freq * np.array([(-1) for _ in range(N)]))
+    eta = LambDicke(ftw, nm_freq) * abs(K)
+    return eta
+
 def freq_to_wav(lamb, dw):
     '''
     Return shifted wavelength (+ve dw for blue shift, -ve dw for red shift)
@@ -71,20 +81,32 @@ def freq_to_wav(lamb, dw):
     w0 = cs.c / lamb * 2 * sp.pi
     return cs.c / (w0 + dw) * 2 * sp.pi
 
-def eff_rabi_freq(n, m, lamb, w):
+def eff_rabi_freq(n, m, lamb, w, normal_coor = 1):
     '''
-    Calculate the matrix element ⟨n|e^i*η(a+a†)|m⟩ for single ion. 
+    Calculate the matrix element ⟨n|e^i*η(a+a†)|m⟩
     
     n, m: initial and final QHO state in the trap
     lamb: radiation wavelength
     w: trap frequency
     '''
-    eta, n_diff = LambDicke(lamb, w), abs(n - m) 
+    eta, n_diff = LambDicke(lamb, w) * normal_coor, abs(n - m)
+#    print('frequencies:', w)
+#    print('ld-parameters:', eta)
     # eta is the LD parameter for axial motion
     factor1 = sp.exp(- eta**2 / 2) * (eta**n_diff)
-    factor2 = np.sqrt(FactorialDiv(sp.amin([n, m]), sp.amax([n, m])))
-    factor3 = eval_genlaguerre(np.amin([n, m]), n_diff, eta**2)
-    return factor1 * factor2 * abs(factor3)
+    factor2 = np.sqrt(FactorialDiv(sp.amin([n, m], axis = 0), sp.amax([n, m], axis = 0)))
+    factor3 = eval_genlaguerre(np.amin([n, m], axis = 0), n_diff, eta**2)
+#    print(factor1, factor2, factor3)
+    return factor1 * factor2 * np.abs(factor3)
+
+def simple_eff_rabi(n, m, eta):
+    n_diff = abs(n - m)
+    factor1 = sp.exp(- eta**2 / 2) * (eta**n_diff)
+    factor2 = np.sqrt(FactorialDiv(sp.amin([n, m], axis = 0), sp.amax([n, m], axis = 0)))
+    factor3 = eval_genlaguerre(np.amin([n, m], axis = 0), n_diff, eta**2)
+#    print(factor1, factor2, factor3)
+    return factor1 * factor2 * np.abs(factor3)
+    
 
 def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     """
@@ -111,7 +133,7 @@ def eff_rabi_freq2(n1, m1, n2, m2, lamb, w):
     factor2_b = np.sqrt(FactorialDiv(np.amin([n2, m2]), np.amax([n2, m2])))
     factor3_b = eval_genlaguerre(np.amin([n2, m2]), n_diff_b, b_eta**2)
     
-    return factor1_com*factor2_com*abs(factor3_com) * factor1_b*factor2_b*abs(factor3_b)
+    return (factor1_com*factor2_com*abs(factor3_com)) * (factor1_b*factor2_b*abs(factor3_b))
 
 def eff_rabi_freq_single_mode(Ni, mode, n, m, lamb, w):
     '''
@@ -139,34 +161,6 @@ def eff_rabi_freq_single_mode(Ni, mode, n, m, lamb, w):
     factor2 = np.sqrt(FactorialDiv(sp.amin([n, m]), sp.amax([n, m])))
     factor3 = eval_genlaguerre(np.amin([n, m]), n_diff, eta**2)
     return factor1 * factor2 * abs(factor3)
-
-def eff_rabi_freq_N(Ni, state_0, n_diff, lamb, w):
-    """
-    Calculate the matrix element for n-mode 
-
-    Parameters
-    ----------
-    Ni      : int. Number of ions in the trap.
-    state_0 : list. Initial state for each mode: [com, breathing]
-    n_diff  : list. n - n' for each mode: [com, breathing]
-    lamb    : float. Radiation wavelength.
-    w       : float. Trap frequency 
-    
-    Returns
-    -------
-    matrix_element : float
-    """
-    # calculate LD parameter (!!! this need to be written in a more general form when extend to more than 2 ions !!!)
-    eta = [[LambDicke(lamb, w)], 
-           [LambDicke(lamb, w)/np.sqrt(2), LambDicke(lamb, w)/np.sqrt(2*np.sqrt(3))]]
-    
-    matrix_element = 1
-    for term in range(len(eta[Ni-1])):
-        factor1 = np.exp(-eta[Ni-1][term]**2 / 2) * (eta[Ni-1][term]**n_diff[term])
-        factor2 = np.sqrt(FactorialDiv(state_0[term] - n_diff[term], state_0[term]))
-        factor3 = eval_genlaguerre(state_0[term] - n_diff[term], n_diff[term], eta[Ni-1][term]**2)
-        matrix_element *= factor1 * factor2 * abs(factor3)
-    return matrix_element
         
 def nave_to_T(nave, w):
     '''
@@ -197,6 +191,13 @@ def Boltzmann_state(T, w, size = 100):
     '''
     bolt_fac = cs.hbar * w / (cs.k * T)
     return sts.planck.rvs(bolt_fac, size = size)
+    # return sts.boltzmann(bolt_fac, size = size)
+
+def BED(T, w):
+    '''
+    Bose-Einstein distribution. Returns the expected number of phonons in a given phonon state
+    '''
+    return 1 / (exp(cs.hbar * w / cs.k / T) - 1)
 
 def PlotRedSb(n0, sb, l):
     """
@@ -223,7 +224,75 @@ def PlotRedSb(n0, sb, l):
         plt.plot(Om_list[Om], label = '%s RSB'%(Om))
     plt.legend()
     plt.xlabel('Motional State Number (n)')
-    plt.ylabel('Normalised Rabi Frequency Strength')
+    plt.ylabel('Normalised Rabi Strength')
     plt.title('Transition wavelength = %s nm'%(int(l*1e9)))
     
+def StoreAnything(filename, data_to_store):
+    '''
+    Store anything under the filename
+    '''
+    filee = open(filename, 'wb')
+    pickle.dump(data_to_store, filee)
+    filee.close()
+    print('file closed')
+    
+def LoadAnything(filename):
+    return pickle.load(open(filename, 'rb'))
+
+def index_1st_greater_than(array, value):
+    '''
+    Find the index in an array of the first element larger than a value
+    '''
+    return argmax(array >= value)
+
+def index_lst_greater_than(array, value):
+    '''
+    Find the index in an array of the last element larger than a value
+    '''
+    return array.size - (argmax(flip(array, axis = 0) >= value) + 1)
+
+def find_sideband(n, sidebands):
+    sb_list = []
+    for iteration in n.T:
+        sub_list = []
+        for sb in sidebands:
+            #print(sum([i >= 0 for i in (iteration + sb)]))
+            #print(len(n))
+            if sum([i >= 0 for i in (iteration + sb)]) == len(n):
+                sub_list.append(sb)
+        sb_list.append(sub_list)    
+    return sb_list
+
+def division(n, d):
+    return n / d if d else 0
+
+def subtract(a, b):
+    return a - b if a else 1
+
+def amplitude(a, b):
+    return division(a**2, (a**2 + b**2))
+
+def frequency(a, b):
+    return np.sqrt(a**2 + b**2)/2
+
+def find_smallest_detuning_index(detune, N):
+    list1 = [ele**2 for ele in detune]
+    # print(list1)
+    sorted_list1 = sort(list1)
+    # print(sorted_list1)
+    final_list = [list1.index(ele) for ele in sorted_list1[:N+1]] 
+    # print(final_list)
+    return [list1.index(ele) for ele in sorted_list1[:N+1]] 
+
+def detuning_func(sidebands, frequency, laser_sideband):
+    return sum(np.array(sidebands) * frequency) + laser_sideband
+
+def transform_basis(N, tran_m):
+    modes_w, K, matrix =  icc_normal_modes_z(N = N) # normal frequencies and normal coordinates
+    eigvals0, eigvecs = np.linalg.eig(np.matmul(np.linalg.inv(tran_m), np.matmul(matrix, tran_m)))
+    eigvals = sorted(eigvals0)
+    order = [eigvals.index(eigvals0[i]) for i in range(N)][::-1]
+    eigvecs[:, np.arange(N)] = eigvecs[:, order]
+    norm_freq = np.sqrt(eigvals)
+    return (norm_freq, eigvecs)
 
